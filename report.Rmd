@@ -13,7 +13,7 @@ output:
     highlight: pygments
 ---
 
-<img src="logo.svg" style="position:absolute;top:0px;right:0px;" />
+<img src="logo.png" style="position:absolute;top:0px;right:0px;" width="100" />
 <div class="watermark">DRAFT</div>
 
 ```{r setup, include=FALSE}
@@ -22,7 +22,17 @@ knitr::opts_chunk$set(echo = FALSE, cache = FALSE, eval = TRUE)
 
 # Executive Summary
 
-```{r results = 'asis'}
+```{r results = 'asis', message=F, warning=F}
+library(openxlsx)
+library(tidyverse)
+library(stringr)
+library(scales)    # to show scale in percent
+library(ggseas)    # for seasonal adjustment on the fly
+library(forcats)   # for munging factors
+library(extrafont) # in case running on windows
+library(stringi)   # for generating pseudo lating lorem ipsum text
+
+source('corp-palette.R')
 cat(stri_rand_lipsum(1))
 ```
 
@@ -50,7 +60,17 @@ We found this data from [MBIE's website](http://www.mbie.govt.nz/info-services/s
 
 We see a very strong seasonal pattern, and also that people spend a lot on accommodation, food and beverage, and retail.
 
-```{r}
+```{r, message=F, warning=F}
+
+mrtes_orig <- read.xlsx("./data/mrtes.xlsx", sheet = "Data base", detectDates = TRUE)
+
+# make some alternative names for the Regional Tourism Organisations, more graphic friendly,
+# including one that is just the 5 big ones plus "Other":
+mrtes <- mrtes_orig %>%
+  mutate(rto_short = gsub(" RTO", "", RTO),
+         rto_lumped = fct_reorder(rto_short, -Spend),
+         rto_lumped = fct_other(rto_lumped, keep = levels(rto_lumped)[1:5]))
+
 p <- mrtes %>%
   # make products friendly with line wraps for the facet titles:
   mutate(Product = str_wrap(Product, 20)) %>%
@@ -73,7 +93,7 @@ p + geom_line() + labs(y = "Spend ($m)")
 Some of the pattern is obscured by the strongly seasonal element.  There are more tourists in summer than winter in New Zealand.  We can use statistical methods to adjust for the seasonality and focus more on the trend.  NOte the big spike in food and beverage sales in Auckland in particular at the time of the 2011 Rugby World Cup.  Also not challenges with seasonal adjustment of accommodation spend in Auckland.  We could consider using more sophisticated methods to understand what is going on here.
 
 
-```{r}
+```{r, message=F, warning=F}
 p +   stat_stl(frequency = 12, s.window = 7) +
   labs(y = "Seasonall adjusted spend ($m)")
 
@@ -82,9 +102,10 @@ p +   stat_stl(frequency = 12, s.window = 7) +
 
 ### Food and Bev versus accommodation
 
-We get some interesting patterns if we compare the percentage of total tourism spend on accommodation compared to food and beverage.  The sking location of Ruapehu stands out as having much more spend on accommodation and relatively little on food and beverage.  However, this may reflect the data collection process - if food and beverages are purchased from tourist's hotels, it will show up as accommodation:
+We get some interesting patterns if we compare the percentage of total tourism spend on accommodation compared to food and beverage.  The skiing location of Ruapehu stands out as having much more spend on accommodation and relatively little on food and beverage.  However, this may reflect the data collection process - if food and beverages are purchased from tourist's hotels, it will show up as accommodation:
 
-```{r}
+```{r, message=F, warning=F}
+
 mrtes %>%
   group_by(rto_short, Product) %>%
   summarise(total_spend = sum(Spend)) %>%
